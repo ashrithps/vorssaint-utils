@@ -254,6 +254,7 @@ final class AgentUsageStore {
         if !subagent {
             if !record.model.isEmpty { turn.model = record.model }
             if !record.project.isEmpty { turn.project = record.project }
+            turn.context = index[key].map { records[$0].tokens.prompt } ?? record.tokens.prompt
         }
         turns[file] = turn
     }

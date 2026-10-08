@@ -228,6 +228,39 @@ enum NotchAgentSupport {
         }
     }
 
+    /// The most herdr tabs the strip marks with a dot each, and each dot's room.
+    static let stripDotLimit = 4
+    static let stripDotSlot: CGFloat = 8
+    static let stripRingSize: CGFloat = 11
+
+    /// A dot per agent tab doing something the person may care about: those
+    /// that need the person first, then working, then done. Idle tabs make none.
+    static func stripDots(tabs: [HerdrAgentTab]) -> [HerdrAgentTab.Status] {
+        Array(tabs.map(\.status).filter { $0 == .blocked || $0 == .working || $0 == .done }
+            .sorted { $0.rank < $1.rank }.prefix(stripDotLimit))
+    }
+
+    static func stripDotsWidth(_ count: Int) -> CGFloat {
+        count > 0 ? 3 + CGFloat(count) * stripDotSlot + CGFloat(count - 1) : 0
+    }
+
+    static func stripWaiting(tabs: [HerdrAgentTab]) -> Int { tabs.filter { $0.status == .blocked }.count }
+
+    /// How full the context of the Claude session active last is, 0...1; nil
+    /// before its first reply.
+    static func stripContext(live: [AgentLiveSession]) -> Double? {
+        guard let session = live.filter({ $0.provider == .claude && $0.context > 0 })
+            .max(by: { $0.lastActivity < $1.lastActivity }) else { return nil }
+        return min(1, Double(session.context) / Double(contextWindow(model: session.model, context: session.context)))
+    }
+
+    /// The context window a Claude session reads into: a million tokens for
+    /// the models that default to one, and for any session already past 200K.
+    static func contextWindow(model: String, context: Int) -> Int {
+        let million = model.range(of: #"^claude-(opus|sonnet|fable|mythos)-5"#, options: .regularExpression) != nil
+        return million || context > 200_000 ? 1_000_000 : 200_000
+    }
+
     /// The herdr tab the closed strip names: one that needs the person first,
     /// then the working session that was active last, with how many other
     /// tabs are waiting or working besides it.

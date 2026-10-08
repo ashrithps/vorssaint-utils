@@ -312,6 +312,7 @@ enum AgentUsageArchive {
             string(value.project)
             tokens(value.tokens)
             double(value.cost)
+            int(value.context)
         }
 
         mutating func state(_ value: AgentLogState) {
@@ -468,7 +469,7 @@ enum AgentUsageArchive {
         mutating func session() throws -> AgentLiveSession {
             AgentLiveSession(id: try string(), provider: try provider(), started: try date(),
                              lastActivity: try date(), model: try string(), project: try string(),
-                             tokens: try tokens(), cost: try double())
+                             tokens: try tokens(), cost: try double(), context: try amount())
         }
 
         mutating func state() throws -> AgentLogState {

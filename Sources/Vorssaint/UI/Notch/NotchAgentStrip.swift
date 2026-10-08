@@ -43,6 +43,12 @@ struct NotchAgentStrip: View {
             ? geometry.compactActivityEdgeInset(boxHeight: iconSize + 4, radius: (iconSize + 4) / 2) : 0
         let named = NotchAgentSupport.stripTab(live: live, tabs: herdr.tabs)
         let nameText = named.map(NotchAgentSupport.stripTabText)
+        let showsName = nameText != nil && geometry.compactActivityWingWidth > NotchAgentSupport.stripWingRange.upperBound
+        let dots = showsName ? [] : NotchAgentSupport.stripDots(tabs: herdr.tabs)
+        let waiting = NotchAgentSupport.stripWaiting(tabs: herdr.tabs)
+        let context = readout == NotchAgentReadout.limit.rawValue ? nil : NotchAgentSupport.stripContext(live: live)
+        // What changes the wings' width, measured again by the service.
+        let layout = "\(nameText ?? "")|\(dots.count)|\(waiting > 0 ? String(waiting) : "")|\(context != nil)"
         let textInset = !geometry.compactActivityUsesFooter
             ? geometry.compactActivityEdgeInset(boxHeight: textSize * 0.72, radius: 0) : 0
         HStack(spacing: 0) {
@@ -51,17 +57,22 @@ struct NotchAgentStrip: View {
                     if geometry.compactActivityWingWidth >= 28 {
                         ForEach(working) { NotchAgentGlyph(provider: $0, size: iconSize) }
                     }
-                    if let named, let nameText, geometry.compactActivityWingWidth > NotchAgentSupport.stripWingRange.upperBound {
+                    if let named, let nameText, showsName {
                         Text(nameText)
                             .font(.system(size: NotchAgentSupport.stripNameSize, weight: .medium))
                             .foregroundStyle(named.tab.status == .blocked ? Color.orange : Color.white.opacity(0.85))
                             .lineLimit(1)
                             .truncationMode(.tail)
                             .padding(.leading, 4)
+                    } else if !dots.isEmpty {
+                        HStack(spacing: 1) {
+                            ForEach(Array(dots.enumerated()), id: \.offset) { NotchAgentTabDot(status: $0.element) }
+                        }
+                        .padding(.leading, 3)
                     }
                 }
-                // A new name needs the wings measured again, as a new reading does.
-                .onChange(of: nameText) { _, _ in DispatchQueue.main.async { service.refreshPresentation() } }
+                // A new name, dot or gauge needs the wings measured again, as a new reading does.
+                .onChange(of: layout) { _, _ in DispatchQueue.main.async { service.refreshPresentation() } }
                 .padding(.leading, iconInset)
                 .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,
                        alignment: .leading)
@@ -70,21 +81,24 @@ struct NotchAgentStrip: View {
             Color.clear.frame(width: geometry.compactActivityCameraGap)
             Button { service.openActivity(.agents) } label: {
                 Group {
-                    if geometry.compactActivityWingWidth >= 42 {
-                        NotchAgentReadoutTimeline(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed) { date in
-                            let text = reading(at: date, live: live)
-                            Text(text)
+                    if waiting > 0, geometry.compactActivityWingWidth >= 30 {
+                        // A tab waiting on the person outranks every reading.
+                        HStack(spacing: 3) {
+                            Image(systemName: "hand.raised.fill")
+                                .font(.system(size: textSize * 0.8, weight: .semibold))
+                            Text(String(waiting))
                                 .font(.system(size: textSize, weight: .medium))
                                 .monospacedDigit()
-                                .foregroundStyle(tint)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.6)
-                                // A reading that gains a digit, like an hour
-                                // passing, needs wider wings; the service
-                                // measures the same reading.
-                                .onChange(of: NotchAgentSupport.readingShape(text)) { _, _ in
-                                    DispatchQueue.main.async { service.refreshPresentation() }
-                                }
+                        }
+                        .foregroundStyle(.orange)
+                        .lineLimit(1)
+                    } else if geometry.compactActivityWingWidth >= 42 {
+                        HStack(spacing: 4) {
+                            if let context {
+                                NotchAgentRing(value: context, tint: NotchAgentTabDot.contextTint(context), lineWidth: 2)
+                                    .frame(width: NotchAgentSupport.stripRingSize, height: NotchAgentSupport.stripRingSize)
+                            }
+                            readingView(live: live, tint: tint, textSize: textSize)
                         }
                     }
                 }
@@ -100,10 +114,31 @@ struct NotchAgentStrip: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(([nameText].compactMap { $0 } + working.map(\.displayName)).joined(separator: ", "))
-        .accessibilityValue(reading(at: Date(), live: live))
+        .accessibilityValue(waiting > 0 ? text.needYou(waiting)
+            : ([reading(at: Date(), live: live)] + [context.map { text.contextFull(AgentFormat.percent($0)) }].compactMap { $0 })
+                .joined(separator: ", "))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { service.openActivity(.agents) }
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
+    }
+
+    private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
+
+    private func readingView(live: [AgentLiveSession], tint: Color, textSize: CGFloat) -> some View {
+        NotchAgentReadoutTimeline(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed) { date in
+            let text = reading(at: date, live: live)
+            Text(text)
+                .font(.system(size: textSize, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                // A reading that gains a digit, like an hour passing, needs
+                // wider wings; the service measures the same reading.
+                .onChange(of: NotchAgentSupport.readingShape(text)) { _, _ in
+                    DispatchQueue.main.async { service.refreshPresentation() }
+                }
+        }
     }
 
     private func reading(at now: Date, live: [AgentLiveSession]) -> String {
@@ -174,5 +209,27 @@ struct NotchAgentRestingWing: View {
                     .minimumScaleFactor(0.7)
             }
         }
+    }
+}
+
+/// One herdr agent tab beside the mark: pulsing while it works, orange while
+/// it waits on the person, green once it's done and not yet looked at.
+struct NotchAgentTabDot: View {
+    let status: HerdrAgentTab.Status
+
+    static func contextTint(_ fraction: Double) -> Color {
+        fraction >= 0.95 ? .red : fraction >= 0.8 ? .orange : .white.opacity(0.85)
+    }
+
+    var body: some View {
+        Group {
+            switch status {
+            case .working: NotchAgentPulse(tint: .white, size: 4)
+            case .blocked: Circle().fill(Color.orange).frame(width: 5, height: 5)
+            default: Circle().fill(Color.green.opacity(0.9)).frame(width: 5, height: 5)
+            }
+        }
+        .frame(width: NotchAgentSupport.stripDotSlot, height: NotchAgentSupport.stripDotSlot)
+        .accessibilityHidden(true)
     }
 }

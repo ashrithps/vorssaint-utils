@@ -297,7 +297,7 @@ enum AgentUsageArchiveTests {
             ("AgentLimits", labels(sampleLimits), ["provider", "windows", "observedAt", "source"]),
             ("AgentLimitWindow", labels(sampleWindow), ["id", "kind", "minutes", "scope", "usedPercent", "resetsAt"]),
             ("AgentLiveSession", labels(sampleTurn),
-             ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost"]),
+             ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost", "context"]),
             ("AgentLogCursor", labels(cursor),
              ["path", "provider", "tracksTurns", "parent", "openCode", "offset", "identity", "pending", "discarding",
               "state", "modified", "restarted", "fingerprinted"]),

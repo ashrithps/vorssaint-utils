@@ -2686,6 +2686,7 @@ struct KeepAwakeCard: View {
     @AppStorage(DefaultsKey.keepAwakeExternalDisplay) private var keepAwakeExternalDisplay = false
     @AppStorage(DefaultsKey.keepAwakeConnectedToPower) private var keepAwakeConnectedToPower = false
     @AppStorage(DefaultsKey.keepAwakeRunningApps) private var keepAwakeRunningApps = false
+    @AppStorage(DefaultsKey.keepAwakeAgents) private var keepAwakeAgents = false
     @AppStorage(DefaultsKey.keepAwakePauseWhenLocked) private var keepAwakePauseWhenLocked = false
     @AppStorage(DefaultsKey.keepAwakeIconTint) private var keepAwakeIconTint = KeepAwakeIconTint.orange.rawValue
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
@@ -2902,6 +2903,7 @@ struct KeepAwakeCard: View {
         if !keepAwakeExternalDisplay,
            !keepAwakeConnectedToPower,
            !keepAwakeRunningApps,
+           !(keepAwakeAgents && HerdrLink.installed),
            !keepAwakePauseWhenLocked {
             Text(automationStrings.automationOff)
                 .font(.system(size: 9.5, weight: .medium))
@@ -2916,6 +2918,9 @@ struct KeepAwakeCard: View {
                 }
                 if keepAwakeRunningApps {
                     automationSystemBadge("app.fill")
+                }
+                if keepAwakeAgents && HerdrLink.installed {
+                    automationSystemBadge("terminal.fill")
                 }
                 if keepAwakePauseWhenLocked {
                     automationSystemBadge("lock.fill")

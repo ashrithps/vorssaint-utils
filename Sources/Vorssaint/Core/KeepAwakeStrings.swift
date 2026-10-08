@@ -17,6 +17,8 @@ struct KeepAwakeAutomationStrings {
     let runningAppsAddButton: String
     let runningAppsRemoveButton: String
     let runningAppsListCaption: String
+    let agentsToggle: String
+    let agentsActive: String
     let automationActive: String
     let pauseWhenLockedToggle: String
     let pauseWhenLockedCaption: String
@@ -35,6 +37,7 @@ struct KeepAwakeAutomationStrings {
         if conditions == [.externalDisplay] { return externalDisplayActive }
         if conditions == [.power] { return powerActive }
         if conditions == [.runningApps] { return runningAppsActive }
+        if conditions == [.agents] { return agentsActive }
         return automationActive
     }
 }
@@ -177,6 +180,8 @@ extension KeepAwakeAutomationStrings {
         runningAppsAddButton: "Add an app…",
         runningAppsRemoveButton: "Remove",
         runningAppsListCaption: "Keep Awake starts while any of these apps is open, even in the background.",
+        agentsToggle: "Agents in herdr",
+        agentsActive: "Active while an agent works in herdr on this Mac",
         automationActive: "Active because an automatic condition is met",
         pauseWhenLockedToggle: "Pause while the Mac is locked",
         pauseWhenLockedCaption: "Follows normal sleep rules while locked and resumes the remaining session after you unlock.",
@@ -199,6 +204,8 @@ extension KeepAwakeAutomationStrings {
         runningAppsAddButton: "Adicionar app…",
         runningAppsRemoveButton: "Remover",
         runningAppsListCaption: "O Keep Awake inicia enquanto qualquer um destes apps estiver aberto, mesmo em segundo plano.",
+        agentsToggle: "Agentes no herdr",
+        agentsActive: "Ativo enquanto um agente trabalha no herdr neste Mac",
         automationActive: "Ativo porque uma condição automática foi atendida",
         pauseWhenLockedToggle: "Pausar enquanto o Mac estiver bloqueado",
         pauseWhenLockedCaption: "Segue as regras normais de repouso enquanto estiver bloqueado e retoma o tempo restante após o desbloqueio.",
@@ -221,6 +228,8 @@ extension KeepAwakeAutomationStrings {
         runningAppsAddButton: "Uygulama ekle…",
         runningAppsRemoveButton: "Kaldır",
         runningAppsListCaption: "Bu uygulamalardan herhangi biri açıkken (arka planda bile) Uyanık Tut başlar.",
+        agentsToggle: "herdr ajanları",
+        agentsActive: "Bu Mac’te herdr’da bir ajan çalışırken etkin",
         automationActive: "Otomatik bir koşul sağlandığı için etkin",
         pauseWhenLockedToggle: "Mac kilitliyken duraklat",
         pauseWhenLockedCaption: "Kilitliyken normal uyku kurallarını izler ve kilidi açtığınızda kalan oturumu sürdürür.",
@@ -243,6 +252,8 @@ extension KeepAwakeAutomationStrings {
         runningAppsAddButton: "Добавить приложение…",
         runningAppsRemoveButton: "Удалить",
         runningAppsListCaption: "Не давать Mac уснуть, пока открыто любое из этих приложений, даже в фоне.",
+        agentsToggle: "Агенты в herdr",
+        agentsActive: "Активно, пока агент работает в herdr на этом Mac",
         automationActive: "Активно по автоматическому условию",
         pauseWhenLockedToggle: "Приостанавливать, пока Mac заблокирован",
         pauseWhenLockedCaption: "Пока Mac заблокирован, действуют обычные правила сна, а после разблокировки продолжается оставшееся время сеанса.",
@@ -265,6 +276,8 @@ extension KeepAwakeAutomationStrings {
         runningAppsAddButton: "Añadir app…",
         runningAppsRemoveButton: "Quitar",
         runningAppsListCaption: "Keep Awake se activa mientras cualquiera de estas apps esté abierta, incluso en segundo plano.",
+        agentsToggle: "Agentes en herdr",
+        agentsActive: "Activo mientras un agente trabaja en herdr en este Mac",
         automationActive: "Activo porque se cumple una condición automática",
         pauseWhenLockedToggle: "Pausar mientras el Mac esté bloqueado",
         pauseWhenLockedCaption: "Sigue las reglas de reposo habituales mientras está bloqueado y reanuda el tiempo restante al desbloquearlo.",
@@ -287,6 +300,8 @@ extension KeepAwakeAutomationStrings {
         runningAppsAddButton: "Pridať aplikáciu…",
         runningAppsRemoveButton: "Odstrániť",
         runningAppsListCaption: "Bdelý režim je aktívny, kým je otvorená ktorákoľvek z týchto aplikácií, aj na pozadí.",
+        agentsToggle: "Agenti v herdr",
+        agentsActive: "Aktívne, kým agent pracuje v herdr na tomto Macu",
         automationActive: "Aktívne, pretože je splnená automatická podmienka",
         pauseWhenLockedToggle: "Pozastaviť, keď je Mac uzamknutý",
         pauseWhenLockedCaption: "Počas uzamknutia sa riadi bežnými pravidlami uspávania a po odomknutí pokračuje zvyšná časť relácie.",
@@ -309,6 +324,8 @@ extension KeepAwakeAutomationStrings {
         runningAppsAddButton: "App hinzufügen…",
         runningAppsRemoveButton: "Entfernen",
         runningAppsListCaption: "Wachhalten startet, solange eine dieser Apps geöffnet ist, auch im Hintergrund.",
+        agentsToggle: "Agenten in herdr",
+        agentsActive: "Aktiv, solange ein Agent in herdr auf diesem Mac arbeitet",
         automationActive: "Aktiv, weil eine automatische Bedingung erfüllt ist",
         pauseWhenLockedToggle: "Pausieren, solange der Mac gesperrt ist",
         pauseWhenLockedCaption: "Im Sperrzustand gelten die normalen Ruhezustandsregeln. Nach dem Entsperren läuft die verbleibende Sitzung weiter.",
@@ -331,6 +348,8 @@ extension KeepAwakeAutomationStrings {
         runningAppsAddButton: "Ajouter une app…",
         runningAppsRemoveButton: "Retirer",
         runningAppsListCaption: "Garder éveillé démarre tant que l’une de ces apps est ouverte, même en arrière-plan.",
+        agentsToggle: "Agents dans herdr",
+        agentsActive: "Actif tant qu’un agent travaille dans herdr sur ce Mac",
         automationActive: "Actif car une condition automatique est remplie",
         pauseWhenLockedToggle: "Suspendre lorsque le Mac est verrouillé",
         pauseWhenLockedCaption: "Suit les règles de veille habituelles pendant le verrouillage et reprend le temps restant après le déverrouillage.",
@@ -353,6 +372,8 @@ extension KeepAwakeAutomationStrings {
         runningAppsAddButton: "Aggiungi app…",
         runningAppsRemoveButton: "Rimuovi",
         runningAppsListCaption: "Mantieni attivo si avvia mentre una di queste app è aperta, anche in background.",
+        agentsToggle: "Agenti in herdr",
+        agentsActive: "Attivo mentre un agente lavora in herdr su questo Mac",
         automationActive: "Attivo perché una condizione automatica è soddisfatta",
         pauseWhenLockedToggle: "Metti in pausa quando il Mac è bloccato",
         pauseWhenLockedCaption: "Segue le normali regole di stop quando è bloccato e riprende il tempo rimanente dopo lo sblocco.",
@@ -375,6 +396,8 @@ extension KeepAwakeAutomationStrings {
         runningAppsAddButton: "アプリを追加…",
         runningAppsRemoveButton: "削除",
         runningAppsListCaption: "これらのアプリのいずれかが開いている間（バックグラウンドでも）スリープを防ぎます。",
+        agentsToggle: "herdr のエージェント",
+        agentsActive: "この Mac の herdr でエージェントが作業中は有効",
         automationActive: "自動条件が満たされているため有効",
         pauseWhenLockedToggle: "Macのロック中は一時停止",
         pauseWhenLockedCaption: "ロック中は通常のスリープ設定に従い、ロック解除後に残りのセッションを再開します。",
@@ -397,6 +420,8 @@ extension KeepAwakeAutomationStrings {
         runningAppsAddButton: "앱 추가…",
         runningAppsRemoveButton: "제거",
         runningAppsListCaption: "이 앱 중 하나라도 열려 있으면(백그라운드 포함) 절전 방지가 시작됩니다.",
+        agentsToggle: "herdr 에이전트",
+        agentsActive: "이 Mac의 herdr에서 에이전트가 작업하는 동안 활성",
         automationActive: "자동 조건이 충족되어 활성화",
         pauseWhenLockedToggle: "Mac이 잠겨 있는 동안 일시 정지",
         pauseWhenLockedCaption: "잠겨 있는 동안 일반 잠자기 설정을 따르고 잠금 해제 후 남은 세션을 다시 시작합니다.",
@@ -419,6 +444,8 @@ extension KeepAwakeAutomationStrings {
         runningAppsAddButton: "添加 App…",
         runningAppsRemoveButton: "移除",
         runningAppsListCaption: "只要这些 App 中有任一在运行（包括后台），就会保持唤醒。",
+        agentsToggle: "herdr 中的智能体",
+        agentsActive: "此 Mac 的 herdr 中有智能体工作时启用",
         automationActive: "因满足自动条件而保持唤醒",
         pauseWhenLockedToggle: "Mac 锁定时暂停",
         pauseWhenLockedCaption: "锁定期间遵循正常的睡眠设置，解锁后继续剩余时段。",
@@ -441,6 +468,8 @@ extension KeepAwakeAutomationStrings {
         runningAppsAddButton: "新增 App…",
         runningAppsRemoveButton: "移除",
         runningAppsListCaption: "只要這些 App 中有任一正在執行（包括背景），就會保持喚醒。",
+        agentsToggle: "herdr 中的代理",
+        agentsActive: "此 Mac 的 herdr 中有代理工作時啟用",
         automationActive: "因符合自動條件而保持喚醒",
         pauseWhenLockedToggle: "Mac 鎖定時暫停",
         pauseWhenLockedCaption: "鎖定期間會依照正常的睡眠設定，解鎖後繼續剩餘時段。",
@@ -463,6 +492,8 @@ extension KeepAwakeAutomationStrings {
         runningAppsAddButton: "新增 App…",
         runningAppsRemoveButton: "移除",
         runningAppsListCaption: "只要這些 App 中有任何一個正在執行（包括背景），就會保持喚醒。",
+        agentsToggle: "herdr 中的代理",
+        agentsActive: "此 Mac 的 herdr 中有代理工作時啟用",
         automationActive: "因符合自動條件而保持喚醒",
         pauseWhenLockedToggle: "Mac 鎖定時暫停",
         pauseWhenLockedCaption: "鎖定期間會按正常睡眠設定運作，解鎖後繼續餘下時段。",
@@ -484,6 +515,8 @@ extension KeepAwakeAutomationStrings {
         runningAppsAddButton: "Додати програму…",
         runningAppsRemoveButton: "Видалити",
         runningAppsListCaption: "Режим без сну вмикається, поки будь-яка з цих програм відкрита, навіть у фоновому режимі.",
+        agentsToggle: "Агенти в herdr",
+        agentsActive: "Активно, поки агент працює в herdr на цьому Mac",
         automationActive: "Активно, оскільки виконано автоматичну умову",
         pauseWhenLockedToggle: "Призупиняти, коли Mac заблоковано",
         pauseWhenLockedCaption: "Під час блокування діють звичайні правила сну; після розблокування сеанс продовжується.",

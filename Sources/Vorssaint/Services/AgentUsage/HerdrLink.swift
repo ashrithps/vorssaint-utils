@@ -73,6 +73,25 @@ final class HerdrLink: ObservableObject {
         session.isEmpty ? nil : tabs.first { $0.session == session }
     }
 
+    private static var localLogs = Set<String>()
+    private static let localLogsLock = NSLock()
+
+    /// Whether this Mac holds the log of a Claude Code session, as a session
+    /// running here does; one found stays found.
+    static func hasLocalClaudeLog(session: String, home: String = NSHomeDirectory()) -> Bool {
+        guard !session.isEmpty, !session.contains("/") else { return false }
+        localLogsLock.lock()
+        defer { localLogsLock.unlock() }
+        if localLogs.contains(session) { return true }
+        let projects = (ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"] ?? home + "/.claude") + "/projects"
+        let folders = (try? FileManager.default.contentsOfDirectory(atPath: projects)) ?? []
+        guard folders.contains(where: {
+            FileManager.default.fileExists(atPath: projects + "/" + $0 + "/" + session + ".jsonl")
+        }) else { return false }
+        localLogs.insert(session)
+        return true
+    }
+
     /// The session id behind a live transcript: Claude Code names each log
     /// after its session.
     static func session(ofLog path: String) -> String {

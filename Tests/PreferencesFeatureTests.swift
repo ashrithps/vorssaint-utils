@@ -340,6 +340,26 @@ enum PreferencesFeatureTests {
                      && !HerdrLink.hasLocalClaudeLog(session: "def-456", home: fakeHome.path)
                      && !HerdrLink.hasLocalClaudeLog(session: "../abc-123", home: fakeHome.path),
                      "a session's log is looked for in Claude Code's projects on this Mac, and only by its name")
+        var leftRunning = agentTab(.done, session: "here")
+        leftRunning.background = true
+        suite.expect(KeepAwakeAutomationSupport.agentsWorkLocally(tabs: [leftRunning], hasLocalLog: localLogs.contains),
+                     "a session between turns still counts while its subagent or background command runs")
+        let subagents = fakeHome.appendingPathComponent(".claude/projects/-Users-me-code/abc-123/subagents")
+        try? FileManager.default.createDirectory(at: subagents, withIntermediateDirectories: true)
+        let transcript = subagents.appendingPathComponent("agent-a1.jsonl")
+        FileManager.default.createFile(atPath: transcript.path, contents: Data())
+        let written = Date()
+        try? FileManager.default.setAttributes([.modificationDate: written], ofItemAtPath: transcript.path)
+        suite.expect(HerdrLink.subagentWorking(session: "abc-123", home: fakeHome.path, now: written.addingTimeInterval(60))
+                     && !HerdrLink.subagentWorking(session: "abc-123", home: fakeHome.path,
+                                                   now: written.addingTimeInterval(HerdrLink.subagentQuiet + 1)),
+                     "a subagent counts as working while its transcript grew lately")
+        suite.expect(HerdrLink.isTaskOutput("/private/tmp/claude-501/-Users-me-code/abc-123/tasks/b1.output", session: "abc-123")
+                     && !HerdrLink.isTaskOutput("/private/tmp/claude-501/-Users-me-code/abc-1234/tasks/b1.output", session: "abc-123")
+                     && !HerdrLink.isTaskOutput("/Users/me/code/notes.txt", session: "abc-123"),
+                     "only an output file in the session's own tasks folder marks a background command")
+        suite.expect(HerdrLink.descendants(of: 1, parents: [(2, 1), (3, 2), (4, 9), (5, 5), (6, 3)]) == [2, 3, 6],
+                     "the process tree under a session is walked whole, and nothing outside it")
         try? FileManager.default.removeItem(at: fakeHome)
         let automationEditor = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/KeepAwakeAutomationView.swift",

@@ -500,6 +500,7 @@ final class KeepAwakeManager: ObservableObject {
     private func setAgentsMonitoringEnabled(_ enabled: Bool) {
         if enabled {
             guard agentsObservation == nil else { return }
+            HerdrLink.shared.tracksBackground = true
             HerdrLink.shared.watch()
             agentsObservation = HerdrLink.shared.$tabs.dropFirst().sink { [weak self] _ in
                 DispatchQueue.main.async { self?.scheduleAutomationEvaluation(after: 0.1) }
@@ -508,6 +509,7 @@ final class KeepAwakeManager: ObservableObject {
             observation.cancel()
             agentsObservation = nil
             agentsLastWorking = nil
+            HerdrLink.shared.tracksBackground = false
             HerdrLink.shared.unwatch()
         }
     }

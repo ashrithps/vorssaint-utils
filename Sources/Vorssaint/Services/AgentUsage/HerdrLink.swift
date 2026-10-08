@@ -30,6 +30,9 @@ struct HerdrAgentTab: Identifiable, Equatable {
     let status: Status
     let tab: String
     let workspace: String
+    /// Work the session left running after its turn: a subagent still writing
+    /// or a background command still open. Read only while `tracksBackground`.
+    var background = false
 }
 
 /// Reads herdr's local socket so the island can show agent sessions by the
@@ -45,6 +48,9 @@ final class HerdrLink: ObservableObject {
 
     private var timer: Timer?
     private var watchers = 0
+    /// Whether to look for work sessions leave running in the background,
+    /// which costs a process scan per poll; Keep Awake asks for it.
+    var tracksBackground = false
     private let queue = DispatchQueue(label: "com.vorssaint.herdr", qos: .utility)
 
     static var socketPath: String {
@@ -73,23 +79,50 @@ final class HerdrLink: ObservableObject {
         session.isEmpty ? nil : tabs.first { $0.session == session }
     }
 
-    private static var localLogs = Set<String>()
+    private static var localLogs: [String: String] = [:]
     private static let localLogsLock = NSLock()
 
     /// Whether this Mac holds the log of a Claude Code session, as a session
     /// running here does; one found stays found.
     static func hasLocalClaudeLog(session: String, home: String = NSHomeDirectory()) -> Bool {
-        guard !session.isEmpty, !session.contains("/") else { return false }
+        localLogFolder(session: session, home: home) != nil
+    }
+
+    /// The project folder holding a session's log on this Mac.
+    private static func localLogFolder(session: String, home: String = NSHomeDirectory()) -> String? {
+        guard !session.isEmpty, !session.contains("/") else { return nil }
         localLogsLock.lock()
         defer { localLogsLock.unlock() }
-        if localLogs.contains(session) { return true }
+        if let folder = localLogs[session] { return folder }
         let projects = (ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"] ?? home + "/.claude") + "/projects"
         let folders = (try? FileManager.default.contentsOfDirectory(atPath: projects)) ?? []
-        guard folders.contains(where: {
+        guard let found = folders.first(where: {
             FileManager.default.fileExists(atPath: projects + "/" + $0 + "/" + session + ".jsonl")
-        }) else { return false }
-        localLogs.insert(session)
-        return true
+        }) else { return nil }
+        localLogs[session] = projects + "/" + found
+        return projects + "/" + found
+    }
+
+    /// How recently a subagent counts as still working: its transcript grows
+    /// with every step, and one step rarely takes longer.
+    static let subagentQuiet: TimeInterval = 180
+
+    /// Whether one of a session's subagents wrote to its transcript lately.
+    static func subagentWorking(session: String, home: String = NSHomeDirectory(), now: Date = Date()) -> Bool {
+        guard let folder = localLogFolder(session: session, home: home) else { return false }
+        let subagents = URL(fileURLWithPath: folder + "/" + session + "/subagents", isDirectory: true)
+        let logs = (try? FileManager.default.contentsOfDirectory(at: subagents, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        return logs.contains { log in
+            log.pathExtension == "jsonl"
+                && (try? log.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)
+                    .map { now.timeIntervalSince($0) < subagentQuiet } == true
+        }
+    }
+
+    /// Claude Code sends a background command's output to a file in the
+    /// session's own tasks folder, held open until the command ends.
+    static func isTaskOutput(_ path: String, session: String) -> Bool {
+        !session.isEmpty && path.contains("/" + session + "/tasks/")
     }
 
     /// The session id behind a live transcript: Claude Code names each log
@@ -99,8 +132,9 @@ final class HerdrLink: ObservableObject {
     }
 
     func refresh() {
+        let background = tracksBackground
         queue.async { [weak self] in
-            let fetched = Self.fetch()
+            let fetched = Self.fetch(background: background)
             DispatchQueue.main.async {
                 guard let self else { return }
                 if self.reachable != (fetched != nil) { self.reachable = fetched != nil }
@@ -120,7 +154,7 @@ final class HerdrLink: ObservableObject {
 
     // MARK: Socket
 
-    private static func fetch() -> [HerdrAgentTab]? {
+    private static func fetch(background: Bool) -> [HerdrAgentTab]? {
         guard installed,
               let panes = call("pane.list")?["panes"] as? [[String: Any]],
               let spaces = call("workspace.list")?["workspaces"] as? [[String: Any]]
@@ -130,7 +164,73 @@ final class HerdrLink: ObservableObject {
         let tabs = spaces.compactMap { $0["workspace_id"] as? String }.filter(busy.contains).flatMap {
             call("tab.list", ["workspace_id": $0])?["tabs"] as? [[String: Any]] ?? []
         }
-        return agentTabs(panes: panes, workspaces: spaces, tabs: tabs)
+        var found = agentTabs(panes: panes, workspaces: spaces, tabs: tabs)
+        if background { markBackground(&found) }
+        return found
+    }
+
+    /// Marks the local Claude sessions between turns that still have work
+    /// running: a subagent writing, or a command of theirs holding its output.
+    private static func markBackground(_ tabs: inout [HerdrAgentTab]) {
+        let idle = tabs.indices.filter {
+            tabs[$0].agent == "claude" && tabs[$0].status != .working && hasLocalClaudeLog(session: tabs[$0].session)
+        }
+        guard !idle.isEmpty else { return }
+        var parents: [(pid: pid_t, ppid: pid_t)]?
+        for index in idle {
+            let session = tabs[index].session
+            if subagentWorking(session: session) {
+                tabs[index].background = true
+                continue
+            }
+            let info = call("pane.process_info", ["pane_id": tabs[index].id])?["process_info"] as? [String: Any]
+            let running = info?["foreground_processes"] as? [[String: Any]] ?? []
+            guard let claude = running.first(where: {
+                ($0["argv0"] as? String) == "claude" || ($0["name"] as? String)?.hasPrefix("claude") == true
+            })?["pid"] as? Int else { continue }
+            if parents == nil { parents = processParents() }
+            tabs[index].background = descendants(of: pid_t(claude), parents: parents ?? [])
+                .contains { holdsTaskOutput($0, session: session) }
+        }
+    }
+
+    static func processParents() -> [(pid: pid_t, ppid: pid_t)] {
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_UID, Int32(bitPattern: getuid())]
+        var size = 0
+        guard sysctl(&mib, 4, nil, &size, nil, 0) == 0, size > 0 else { return [] }
+        var procs = [kinfo_proc](repeating: kinfo_proc(), count: size / MemoryLayout<kinfo_proc>.stride + 16)
+        size = procs.count * MemoryLayout<kinfo_proc>.stride
+        guard sysctl(&mib, 4, &procs, &size, nil, 0) == 0 else { return [] }
+        return procs.prefix(size / MemoryLayout<kinfo_proc>.stride).map { ($0.kp_proc.p_pid, $0.kp_eproc.e_ppid) }
+    }
+
+    static func descendants(of root: pid_t, parents: [(pid: pid_t, ppid: pid_t)]) -> [pid_t] {
+        var children: [pid_t: [pid_t]] = [:]
+        for row in parents where row.pid != row.ppid { children[row.ppid, default: []].append(row.pid) }
+        var result: [pid_t] = []
+        var seen: Set<pid_t> = [root]
+        var frontier = [root]
+        while !frontier.isEmpty, result.count < 4096 {
+            frontier = frontier.flatMap { children[$0] ?? [] }.filter { seen.insert($0).inserted }
+            result += frontier
+        }
+        return result
+    }
+
+    static func holdsTaskOutput(_ pid: pid_t, session: String) -> Bool {
+        let size = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nil, 0)
+        guard size > 0 else { return false }
+        var fds = [proc_fdinfo](repeating: proc_fdinfo(), count: Int(size) / MemoryLayout<proc_fdinfo>.stride)
+        let used = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, &fds, size)
+        guard used > 0 else { return false }
+        for fd in fds.prefix(Int(used) / MemoryLayout<proc_fdinfo>.stride) where fd.proc_fdtype == UInt32(PROX_FDTYPE_VNODE) {
+            var info = vnode_fdinfowithpath()
+            let length = Int32(MemoryLayout<vnode_fdinfowithpath>.size)
+            guard proc_pidfdinfo(pid, fd.proc_fd, PROC_PIDFDVNODEPATHINFO, &info, length) == length else { continue }
+            let path = withUnsafeBytes(of: info.pvip.vip_path) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+            if isTaskOutput(path, session: session) { return true }
+        }
+        return false
     }
 
     private static func isAgent(_ pane: [String: Any]) -> Bool {

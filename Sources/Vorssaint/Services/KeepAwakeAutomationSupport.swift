@@ -54,11 +54,14 @@ enum KeepAwakeAutomationSupport {
         return runningBundleIDs.contains(where: selected.contains)
     }
 
-    /// Whether a Claude Code session herdr reports as working keeps its log on
-    /// this Mac. A herdr pane that runs the agent on another machine over SSH
+    /// Whether a Claude Code session herdr reports as working, or one that
+    /// left a subagent or background command running, keeps its log on this
+    /// Mac. A herdr pane that runs the agent on another machine over SSH
     /// writes its log there, and that machine stays up without this one.
     static func agentsWorkLocally(tabs: [HerdrAgentTab], hasLocalLog: (String) -> Bool) -> Bool {
-        tabs.contains { $0.status == .working && $0.agent == "claude" && !$0.session.isEmpty && hasLocalLog($0.session) }
+        tabs.contains {
+            ($0.status == .working || $0.background) && $0.agent == "claude" && !$0.session.isEmpty && hasLocalLog($0.session)
+        }
     }
 
     static func matchingConditions(externalDisplayEnabled: Bool,

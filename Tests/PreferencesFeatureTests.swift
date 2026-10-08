@@ -305,6 +305,42 @@ enum PreferencesFeatureTests {
             sessionActive: true,
             automaticSessionActive: true
         ) == .none, "the same unplug leaves an Any session running, which is why All exists")
+        func agentTab(_ status: HerdrAgentTab.Status, session: String, agent: String = "claude") -> HerdrAgentTab {
+            HerdrAgentTab(id: session, session: session, agent: agent, status: status, tab: "", workspace: "")
+        }
+        let localLogs: Set<String> = ["here"]
+        suite.expect(KeepAwakeAutomationSupport.agentsWorkLocally(
+            tabs: [agentTab(.idle, session: "here"), agentTab(.working, session: "here")],
+            hasLocalLog: localLogs.contains), "a working Claude session with its log on this Mac keeps it awake")
+        suite.expect(!KeepAwakeAutomationSupport.agentsWorkLocally(
+            tabs: [agentTab(.working, session: "remote")], hasLocalLog: localLogs.contains),
+            "a session whose log is on another machine, as over SSH, does not")
+        suite.expect(!KeepAwakeAutomationSupport.agentsWorkLocally(
+            tabs: [agentTab(.blocked, session: "here"), agentTab(.done, session: "here"), agentTab(.idle, session: "here")],
+            hasLocalLog: localLogs.contains), "only working counts: waiting, done and idle sessions let the Mac sleep")
+        suite.expect(!KeepAwakeAutomationSupport.agentsWorkLocally(
+            tabs: [agentTab(.working, session: "here", agent: "codex"), agentTab(.working, session: "")],
+            hasLocalLog: { _ in true }), "only Claude sessions herdr can name are counted")
+        suite.expect(KeepAwakeAutomationSupport.matchingConditions(
+            externalDisplayEnabled: false, externalDisplayConnected: false, powerEnabled: false, connectedToPower: false,
+            runningAppsEnabled: false, selectedAppsRunning: false, agentsEnabled: true, agentsWorking: true) == [.agents]
+            && KeepAwakeAutomationSupport.matchingConditions(
+            externalDisplayEnabled: false, externalDisplayConnected: false, powerEnabled: false, connectedToPower: false,
+            runningAppsEnabled: false, selectedAppsRunning: false, agentsEnabled: false, agentsWorking: true).isEmpty,
+            "working agents match only while that condition is on")
+        suite.expect(KeepAwakeAutomationSupport.enabledConditions(
+            externalDisplayEnabled: false, powerEnabled: true, runningAppsEnabled: false, agentsEnabled: true) == [.power, .agents],
+            "the agents condition takes part in All like the others")
+        let fakeHome = FileManager.default.temporaryDirectory.appendingPathComponent("herdr-logs-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: fakeHome.appendingPathComponent(".claude/projects/-Users-me-code"),
+                                                 withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: fakeHome.appendingPathComponent(".claude/projects/-Users-me-code/abc-123.jsonl").path,
+                                       contents: Data())
+        suite.expect(HerdrLink.hasLocalClaudeLog(session: "abc-123", home: fakeHome.path)
+                     && !HerdrLink.hasLocalClaudeLog(session: "def-456", home: fakeHome.path)
+                     && !HerdrLink.hasLocalClaudeLog(session: "../abc-123", home: fakeHome.path),
+                     "a session's log is looked for in Claude Code's projects on this Mac, and only by its name")
+        try? FileManager.default.removeItem(at: fakeHome)
         let automationEditor = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/KeepAwakeAutomationView.swift",
             encoding: .utf8)) ?? ""

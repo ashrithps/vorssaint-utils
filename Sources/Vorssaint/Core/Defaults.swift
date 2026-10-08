@@ -31,6 +31,7 @@ enum DefaultsKey {
     static let keepAwakeConnectedToPower = "keepAwakeConnectedToPower"
     static let keepAwakeRunningApps = "keepAwakeRunningApps"
     static let keepAwakeRunningAppBundleIDs = "keepAwakeRunningAppBundleIDs"
+    static let keepAwakeAgents = "keepAwakeAgents"  // while a Claude session works in herdr on this Mac
     // Match mode over the automation conditions: false is Any (one matching
     // condition starts a session), true is All (every enabled condition has
     // to match, and losing one ends the session). Issue #1587.
@@ -1180,6 +1181,7 @@ enum Defaults {
         DefaultsKey.keepAwakeConnectedToPower: false,
         DefaultsKey.keepAwakeRunningApps: false,
         DefaultsKey.keepAwakeRunningAppBundleIDs: [String](),
+        DefaultsKey.keepAwakeAgents: false,
         DefaultsKey.keepAwakeAutomationRequireAll: false,
         DefaultsKey.keepAwakePauseWhenLocked: false,
         DefaultsKey.keepAwakeSwitchUsesUntil: false,

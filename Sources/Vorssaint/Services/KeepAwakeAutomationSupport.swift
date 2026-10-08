@@ -7,6 +7,7 @@ enum KeepAwakeAutomationCondition: String, CaseIterable, Hashable {
     case externalDisplay
     case power
     case runningApps
+    case agents
 }
 
 enum KeepAwakeAutomationAction: Equatable {
@@ -53,12 +54,21 @@ enum KeepAwakeAutomationSupport {
         return runningBundleIDs.contains(where: selected.contains)
     }
 
+    /// Whether a Claude Code session herdr reports as working keeps its log on
+    /// this Mac. A herdr pane that runs the agent on another machine over SSH
+    /// writes its log there, and that machine stays up without this one.
+    static func agentsWorkLocally(tabs: [HerdrAgentTab], hasLocalLog: (String) -> Bool) -> Bool {
+        tabs.contains { $0.status == .working && $0.agent == "claude" && !$0.session.isEmpty && hasLocalLog($0.session) }
+    }
+
     static func matchingConditions(externalDisplayEnabled: Bool,
                                    externalDisplayConnected: Bool,
                                    powerEnabled: Bool,
                                    connectedToPower: Bool,
                                    runningAppsEnabled: Bool,
-                                   selectedAppsRunning: Bool) -> Set<KeepAwakeAutomationCondition> {
+                                   selectedAppsRunning: Bool,
+                                   agentsEnabled: Bool = false,
+                                   agentsWorking: Bool = false) -> Set<KeepAwakeAutomationCondition> {
         var matches = Set<KeepAwakeAutomationCondition>()
         if externalDisplayEnabled, externalDisplayConnected {
             matches.insert(.externalDisplay)
@@ -68,6 +78,9 @@ enum KeepAwakeAutomationSupport {
         }
         if runningAppsEnabled, selectedAppsRunning {
             matches.insert(.runningApps)
+        }
+        if agentsEnabled, agentsWorking {
+            matches.insert(.agents)
         }
         return matches
     }
@@ -84,11 +97,13 @@ enum KeepAwakeAutomationSupport {
     static func enabledConditions(externalDisplayEnabled: Bool,
                                   powerEnabled: Bool,
                                   runningAppsEnabled: Bool,
-                                  hasSelectedApps: Bool = true) -> Set<KeepAwakeAutomationCondition> {
+                                  hasSelectedApps: Bool = true,
+                                  agentsEnabled: Bool = false) -> Set<KeepAwakeAutomationCondition> {
         var enabled = Set<KeepAwakeAutomationCondition>()
         if externalDisplayEnabled { enabled.insert(.externalDisplay) }
         if powerEnabled { enabled.insert(.power) }
         if runningAppsEnabled, hasSelectedApps { enabled.insert(.runningApps) }
+        if agentsEnabled { enabled.insert(.agents) }
         return enabled
     }
 

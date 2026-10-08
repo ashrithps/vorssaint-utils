@@ -83,6 +83,11 @@ final class KeepAwakeManager: ObservableObject {
     private var screenLockObservers: [NSObjectProtocol] = []
     private var powerSourceRunLoopSource: CFRunLoopSource?
     private var runningAppsObservation: NSKeyValueObservation?
+    private var agentsObservation: AnyCancellable?
+    /// When a local agent was last seen working: a turn pauses between steps,
+    /// and the Mac should not drop off in the gap.
+    private var agentsLastWorking: Date?
+    static let agentsGrace: TimeInterval = 90
     private var automationEvaluationWorkItem: DispatchWorkItem?
     private var lastExternalDisplayConnected: Bool?
     private var screenLocked = false
@@ -351,10 +356,12 @@ final class KeepAwakeManager: ObservableObject {
         let observeRunningApps = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRunningApps)
             && !runningAppBundleIDs.isEmpty
+        let observeAgents = available && agentsAutomationEnabled
 
         setScreenMonitoringEnabled(observeScreens)
         setPowerMonitoringEnabled(observePower)
         setRunningAppsMonitoringEnabled(observeRunningApps)
+        setAgentsMonitoringEnabled(observeAgents)
         evaluateAutomation()
     }
 
@@ -484,6 +491,27 @@ final class KeepAwakeManager: ObservableObject {
         }
     }
 
+    private var agentsAutomationEnabled: Bool {
+        HerdrLink.installed && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeAgents)
+    }
+
+    /// herdr's tabs are read while this condition is on, closed lid included:
+    /// its socket answers whether or not the island shows.
+    private func setAgentsMonitoringEnabled(_ enabled: Bool) {
+        if enabled {
+            guard agentsObservation == nil else { return }
+            HerdrLink.shared.watch()
+            agentsObservation = HerdrLink.shared.$tabs.dropFirst().sink { [weak self] _ in
+                DispatchQueue.main.async { self?.scheduleAutomationEvaluation(after: 0.1) }
+            }
+        } else if let observation = agentsObservation {
+            observation.cancel()
+            agentsObservation = nil
+            agentsLastWorking = nil
+            HerdrLink.shared.unwatch()
+        }
+    }
+
     private func scheduleAutomationEvaluation(after delay: TimeInterval) {
         automationEvaluationWorkItem?.cancel()
         let work = DispatchWorkItem { [weak self] in
@@ -500,6 +528,7 @@ final class KeepAwakeManager: ObservableObject {
         setScreenMonitoringEnabled(false)
         setPowerMonitoringEnabled(false)
         setRunningAppsMonitoringEnabled(false)
+        setAgentsMonitoringEnabled(false)
         let center = DistributedNotificationCenter.default()
         for observer in screenLockObservers { center.removeObserver(observer) }
         screenLockObservers.removeAll()
@@ -564,7 +593,8 @@ final class KeepAwakeManager: ObservableObject {
             externalDisplayEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay),
             powerEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeConnectedToPower),
             runningAppsEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRunningApps),
-            hasSelectedApps: !runningAppBundleIDs.isEmpty
+            hasSelectedApps: !runningAppBundleIDs.isEmpty,
+            agentsEnabled: agentsAutomationEnabled
         )
     }
 
@@ -607,13 +637,31 @@ final class KeepAwakeManager: ObservableObject {
             selectedAppsRunning = false
         }
 
+        let agentsEnabled = agentsAutomationEnabled
+        var agentsWorking = false
+        if agentsEnabled {
+            let now = Date()
+            if KeepAwakeAutomationSupport.agentsWorkLocally(tabs: HerdrLink.shared.tabs,
+                                                           hasLocalLog: { HerdrLink.hasLocalClaudeLog(session: $0) }) {
+                agentsLastWorking = now
+                agentsWorking = true
+            } else if let last = agentsLastWorking {
+                let left = Self.agentsGrace - now.timeIntervalSince(last)
+                agentsWorking = left > 0
+                // Nothing else changes when the grace runs out, so ask again then.
+                if agentsWorking { scheduleAutomationEvaluation(after: left + 0.5) }
+            }
+        }
+
         return KeepAwakeAutomationSupport.matchingConditions(
             externalDisplayEnabled: externalDisplayEnabled,
             externalDisplayConnected: externalDisplayConnected,
             powerEnabled: powerEnabled,
             connectedToPower: connectedToPower,
             runningAppsEnabled: runningAppsEnabled,
-            selectedAppsRunning: selectedAppsRunning
+            selectedAppsRunning: selectedAppsRunning,
+            agentsEnabled: agentsEnabled,
+            agentsWorking: agentsWorking
         )
     }
 

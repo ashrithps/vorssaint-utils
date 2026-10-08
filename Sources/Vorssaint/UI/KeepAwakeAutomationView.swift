@@ -9,6 +9,7 @@ struct KeepAwakeAutomationEditor: View {
     @AppStorage(DefaultsKey.keepAwakeExternalDisplay) private var externalDisplay = false
     @AppStorage(DefaultsKey.keepAwakeConnectedToPower) private var connectedToPower = false
     @AppStorage(DefaultsKey.keepAwakeRunningApps) private var runningApps = false
+    @AppStorage(DefaultsKey.keepAwakeAgents) private var agents = false
     @AppStorage(DefaultsKey.keepAwakeAutomationRequireAll) private var requireAll = false
 
     var compact = false
@@ -40,6 +41,17 @@ struct KeepAwakeAutomationEditor: View {
                     runningApps.toggle()
                     awake.automationPreferencesDidChange()
                 }
+                // Offered where herdr runs: it reports which agents are working.
+                if HerdrLink.installed {
+                    conditionTile(
+                        title: strings.agentsToggle,
+                        icon: "terminal.fill",
+                        selected: agents
+                    ) {
+                        agents.toggle()
+                        awake.automationPreferencesDidChange()
+                    }
+                }
             }
             // One condition cannot be combined with anything, so the mode
             // would be a control with no effect (issue #1587).
@@ -70,7 +82,7 @@ struct KeepAwakeAutomationEditor: View {
     }
 
     private var selectedConditionCount: Int {
-        [externalDisplay, connectedToPower, runningApps].filter { $0 }.count
+        [externalDisplay, connectedToPower, runningApps, agents && HerdrLink.installed].filter { $0 }.count
     }
 
     private var strings: KeepAwakeAutomationStrings {

@@ -195,6 +195,11 @@ enum NotchAgentSupport {
     /// A wing is never narrower than the music strip's, nor wide enough to
     /// crowd the menus beside the camera.
     static let stripWingRange: ClosedRange<CGFloat> = 44...80
+    /// A herdr tab's name beside the mark needs a wider wing, given only where
+    /// the menus leave this much room on each side of the camera.
+    static let stripNameRoom: CGFloat = 94
+    static let stripNameMaximumWing: CGFloat = 160
+    static let stripNameSize: CGFloat = 11
     /// Air between the camera and what sits beside it.
     static let stripCameraGap: CGFloat = 6
 
@@ -221,6 +226,24 @@ enum NotchAgentSupport {
                   let window = focusedLimit(snapshot.limits[provider], focus: focus, now: now) else { return elapsed() }
             return AgentFormat.percent(display == .used ? window.usedFraction : window.remainingFraction)
         }
+    }
+
+    /// The herdr tab the closed strip names: one that needs the person first,
+    /// then the working session that was active last, with how many other
+    /// tabs are waiting or working besides it.
+    static func stripTab(live: [AgentLiveSession], tabs: [HerdrAgentTab]) -> (tab: HerdrAgentTab, others: Int)? {
+        let working = live.filter { $0.provider == .claude }
+            .sorted { $0.lastActivity > $1.lastActivity }
+            .compactMap { session in tabs.first { $0.session == HerdrLink.session(ofLog: session.id) } }
+        let waiting = tabs.filter { $0.status == .blocked }
+        var shown: [HerdrAgentTab] = []
+        for tab in waiting + working where !shown.contains(where: { $0.id == tab.id }) { shown.append(tab) }
+        guard let first = shown.first, !first.tab.isEmpty else { return nil }
+        return (first, shown.count - 1)
+    }
+
+    static func stripTabText(_ named: (tab: HerdrAgentTab, others: Int)) -> String {
+        named.others > 0 ? "\(named.tab.tab) +\(named.others)" : named.tab.tab
     }
 
     /// Every digit takes the same width, so a reading's shape, not its value,

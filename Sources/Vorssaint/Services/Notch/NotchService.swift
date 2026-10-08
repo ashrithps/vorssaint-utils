@@ -605,7 +605,9 @@ final class NotchService: ObservableObject {
         case .downloads:
             let name = NotchDownloadService.shared.items.first { $0.active && !$0.completed }?.name
             return geometry.compactDownloadGeometry(wing: NotchDownloadSupport.compactWing(for: name, in: geometry))
-        case .agents: return geometry.compactAgentGeometry(wing: agentStripWing(in: geometry))
+        case .agents:
+            let wing = agentStripWing(in: geometry)
+            return geometry.compactAgentGeometry(wing: wing, named: wing > NotchAgentSupport.stripWingRange.upperBound)
         case .watch: return geometry.compactWatchGeometry(wing: watchStripWing(in: geometry))
         case .calendar:
             return geometry.compactCalendarGeometry(wing: calendarStripWing(for: companion, in: geometry),
@@ -735,9 +737,19 @@ final class NotchService: ObservableObject {
         let working = Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count
         let mark = CGFloat(working > 1 ? 11 : 14)
         let frame = mark * 1.45 + 1
-        let marks = CGFloat(max(1, working)) * frame + CGFloat(max(0, working - 1))
+        var marks = CGFloat(max(1, working)) * frame + CGFloat(max(0, working - 1))
             + provisional.compactActivityEdgeInset(boxHeight: mark + 4, radius: (mark + 4) / 2)
-        return max(reading, marks) + NotchAgentSupport.stripCameraGap
+        // The herdr tab's name follows the marks where the menus leave room;
+        // otherwise the strip keeps its short wings and the reading alone.
+        if let room = geometry.compactSideRoom, room.isFinite, room >= NotchAgentSupport.stripNameRoom,
+           let named = NotchAgentSupport.stripTab(live: AgentUsageService.shared.snapshot.live,
+                                                  tabs: HerdrLink.shared.tabs) {
+            marks += 5 + (NotchAgentSupport.stripTabText(named) as NSString).size(withAttributes: [
+                .font: NSFont.systemFont(ofSize: NotchAgentSupport.stripNameSize, weight: .medium)
+            ]).width.rounded(.up) + 4
+            return min(NotchAgentSupport.stripNameMaximumWing, max(reading, marks) + NotchAgentSupport.stripCameraGap)
+        }
+        return min(NotchAgentSupport.stripWingRange.upperBound, max(reading, marks) + NotchAgentSupport.stripCameraGap)
     }
 
     var expandedSize: CGSize {

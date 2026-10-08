@@ -2173,6 +2173,10 @@ enum NotchAgentTests {
         suite.expect(geometry.compactAgentGeometry(wing: 12).compactActivityWingWidth == 44
                         && geometry.compactAgentGeometry(wing: 300).compactActivityWingWidth == 80,
                      "a wing is never narrower than the music strip's nor wider than the menus allow")
+        suite.expect(geometry.compactAgentGeometry(wing: 120, named: true).compactActivityWingWidth == 120
+                        && geometry.compactAgentGeometry(wing: 300, named: true).compactActivityWingWidth
+                            == NotchAgentSupport.stripNameMaximumWing,
+                     "a wing that names a herdr tab grows to the name, up to its own limit")
         var crowded = geometry
         crowded.compactSideRoom = 30
         suite.expect(crowded.compactAgentGeometry(wing: 57).compactActivityWingWidth == 0

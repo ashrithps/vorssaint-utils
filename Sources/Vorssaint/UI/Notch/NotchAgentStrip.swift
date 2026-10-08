@@ -13,6 +13,7 @@ struct NotchAgentStrip: View {
     var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var usage = AgentUsageService.shared
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var herdr = HerdrLink.shared
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var focus = NotchAgentLimitFocus.mostUsed.rawValue
@@ -24,6 +25,8 @@ struct NotchAgentStrip: View {
     var body: some View {
         // The last agent stopping empties the list before the strip has left.
         NotchStripHold(usage.snapshot.live, shows: !usage.snapshot.live.isEmpty) { strip(live: $0) }
+            .onAppear { if HerdrLink.installed { herdr.watch() } }
+            .onDisappear { if HerdrLink.installed { herdr.unwatch() } }
     }
 
     @ViewBuilder private func strip(live: [AgentLiveSession]) -> some View {
@@ -38,6 +41,8 @@ struct NotchAgentStrip: View {
         let textSize = NotchAgentSupport.stripTextSize(height: geometry.compactActivityContentHeight)
         let iconInset = !geometry.compactActivityUsesFooter
             ? geometry.compactActivityEdgeInset(boxHeight: iconSize + 4, radius: (iconSize + 4) / 2) : 0
+        let named = NotchAgentSupport.stripTab(live: live, tabs: herdr.tabs)
+        let nameText = named.map(NotchAgentSupport.stripTabText)
         let textInset = !geometry.compactActivityUsesFooter
             ? geometry.compactActivityEdgeInset(boxHeight: textSize * 0.72, radius: 0) : 0
         HStack(spacing: 0) {
@@ -46,7 +51,17 @@ struct NotchAgentStrip: View {
                     if geometry.compactActivityWingWidth >= 28 {
                         ForEach(working) { NotchAgentGlyph(provider: $0, size: iconSize) }
                     }
+                    if let named, let nameText, geometry.compactActivityWingWidth > NotchAgentSupport.stripWingRange.upperBound {
+                        Text(nameText)
+                            .font(.system(size: NotchAgentSupport.stripNameSize, weight: .medium))
+                            .foregroundStyle(named.tab.status == .blocked ? Color.orange : Color.white.opacity(0.85))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .padding(.leading, 4)
+                    }
                 }
+                // A new name needs the wings measured again, as a new reading does.
+                .onChange(of: nameText) { _, _ in DispatchQueue.main.async { service.refreshPresentation() } }
                 .padding(.leading, iconInset)
                 .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,
                        alignment: .leading)
@@ -84,7 +99,7 @@ struct NotchAgentStrip: View {
         .padding(.top, geometry.compactActivityTopPadding)
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(working.map(\.displayName).joined(separator: ", "))
+        .accessibilityLabel(([nameText].compactMap { $0 } + working.map(\.displayName)).joined(separator: ", "))
         .accessibilityValue(reading(at: Date(), live: live))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { service.openActivity(.agents) }

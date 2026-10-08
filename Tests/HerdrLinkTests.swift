@@ -7,6 +7,7 @@ enum HerdrLinkTests {
     static func run(_ suite: TestSuite) {
         suite.run("herdr tabs") { tabs(suite) }
         suite.run("herdr sessions") { sessions(suite) }
+        suite.run("herdr strip name") { strip(suite) }
     }
 
     private static func pane(_ id: String, tab: String, workspace: String = "w1", agent: String? = "claude",
@@ -52,5 +53,36 @@ enum HerdrLinkTests {
         let log = "/Users/someone/.claude/projects/-Users-someone-code/00b43888-5286-485c-afed-ffeb3b9f7691.jsonl"
         suite.expect(HerdrLink.session(ofLog: log) == "00b43888-5286-485c-afed-ffeb3b9f7691",
                      "a Claude log is named after its session")
+    }
+
+    private static func strip(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        func live(_ session: String, active seconds: TimeInterval, provider: AgentProvider = .claude) -> AgentLiveSession {
+            AgentLiveSession(id: "/logs/\(session).jsonl", provider: provider, started: now.addingTimeInterval(-600),
+                             lastActivity: now.addingTimeInterval(seconds), model: "", project: "vault",
+                             tokens: AgentTokens(), cost: 0)
+        }
+        func tab(_ id: String, _ name: String, _ status: HerdrAgentTab.Status, session: String) -> HerdrAgentTab {
+            HerdrAgentTab(id: id, session: session, agent: "claude", status: status, tab: name, workspace: "vault")
+        }
+        let tabs = [tab("p1", "charts tables", .working, session: "a"), tab("p2", "smooth launch", .working, session: "b"),
+                    tab("p3", "mac", .blocked, session: "c"), tab("p4", "notes", .idle, session: "d")]
+
+        let latest = NotchAgentSupport.stripTab(live: [live("a", active: -30), live("b", active: -5)], tabs: Array(tabs.prefix(2)))
+        suite.expect(latest?.tab.id == "p2" && latest?.others == 1, "the session active last is named, with the other counted")
+        suite.expect(latest.map(NotchAgentSupport.stripTabText) == "smooth launch +1", "others read as +N after the name")
+
+        let waiting = NotchAgentSupport.stripTab(live: [live("a", active: -5)], tabs: tabs)
+        suite.expect(waiting?.tab.id == "p3" && waiting?.others == 1,
+                     "a tab that needs the person comes first even while another works")
+
+        suite.expect(NotchAgentSupport.stripTab(live: [live("a", active: 0)], tabs: []) == nil,
+                     "without herdr the strip names nothing")
+        suite.expect(NotchAgentSupport.stripTab(live: [live("a", active: 0, provider: .codex)], tabs: [tab("p1", "x", .working, session: "a")]) == nil,
+                     "only Claude sessions are matched to herdr tabs")
+        suite.expect(NotchAgentSupport.stripTab(live: [live("z", active: 0)], tabs: [tab("p4", "notes", .idle, session: "d")]) == nil,
+                     "an idle tab that isn't the working session is not named")
+        suite.expect(NotchAgentSupport.stripTab(live: [live("a", active: 0)], tabs: [tab("p1", "", .working, session: "a")]) == nil,
+                     "a tab without a name leaves the strip as it was")
     }
 }

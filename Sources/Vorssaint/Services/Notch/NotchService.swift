@@ -3184,9 +3184,10 @@ final class NotchService: ObservableObject {
         let geometry = geometry
         let primaryTop = NSScreen.screens.first?.frame.maxY ?? geometry.screen.maxY
         let window = panel?.windowNumber ?? -1
+        let apps = NSWorkspace.shared.runningApplications.map(\.processIdentifier)
         menuSpaceQueue.async { [weak self] in
             let room = NotchMenuBarSpace.measure(pid: pid, geometry: geometry,
-                                                primaryTop: primaryTop, ownWindow: window)
+                                                primaryTop: primaryTop, ownWindow: window, apps: apps)
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.menuSpaceReading = false

@@ -101,6 +101,7 @@ struct NotchAgentStrings {
     let tabsNone: String
     let tabsUnreachable: String
     let tabsNeedYouFormat: String
+    let contextFullFormat: String
     let tabWorking: String
     let tabBlocked: String
     let tabDone: String
@@ -111,6 +112,7 @@ struct NotchAgentStrings {
     func cached(_ share: String) -> String { String(format: cachedFormat, share) }
     func written(_ count: String) -> String { String(format: writtenFormat, count) }
     func needYou(_ count: Int) -> String { String(format: tabsNeedYouFormat, String(count)) }
+    func contextFull(_ percent: String) -> String { String(format: contextFullFormat, percent) }
 
     func tabStatus(_ status: HerdrAgentTab.Status) -> String {
         switch status {
@@ -292,6 +294,7 @@ extension NotchAgentStrings {
         tabsNone: "No agent tabs open",
         tabsUnreachable: "herdr isn’t running",
         tabsNeedYouFormat: "%@ need you",
+        contextFullFormat: "Context %@ full",
         tabWorking: "Working",
         tabBlocked: "Needs you",
         tabDone: "Done",
@@ -396,6 +399,7 @@ extension NotchAgentStrings {
         tabsNone: "Немає відкритих вкладок агентів",
         tabsUnreachable: "herdr не запущено",
         tabsNeedYouFormat: "Чекають на вас: %@",
+        contextFullFormat: "Контекст заповнено на %@",
         tabWorking: "Працює",
         tabBlocked: "Чекає на вас",
         tabDone: "Готово",
@@ -500,6 +504,7 @@ extension NotchAgentStrings {
         tabsNone: "Nenhuma aba de agente aberta",
         tabsUnreachable: "O herdr não está em execução",
         tabsNeedYouFormat: "%@ aguardando você",
+        contextFullFormat: "Contexto %@ cheio",
         tabWorking: "Trabalhando",
         tabBlocked: "Aguardando você",
         tabDone: "Concluído",
@@ -604,6 +609,7 @@ extension NotchAgentStrings {
         tabsNone: "No hay pestañas de agentes abiertas",
         tabsUnreachable: "herdr no se está ejecutando",
         tabsNeedYouFormat: "%@ te esperan",
+        contextFullFormat: "Contexto al %@",
         tabWorking: "Trabajando",
         tabBlocked: "Te espera",
         tabDone: "Listo",
@@ -708,6 +714,7 @@ extension NotchAgentStrings {
         tabsNone: "Nie sú otvorené žiadne karty agentov",
         tabsUnreachable: "herdr nie je spustený",
         tabsNeedYouFormat: "Čaká na vás: %@",
+        contextFullFormat: "Kontext zaplnený na %@",
         tabWorking: "Pracuje",
         tabBlocked: "Čaká na vás",
         tabDone: "Hotovo",
@@ -812,6 +819,7 @@ extension NotchAgentStrings {
         tabsNone: "Keine Agenten-Tabs offen",
         tabsUnreachable: "herdr läuft nicht",
         tabsNeedYouFormat: "%@ warten auf dich",
+        contextFullFormat: "Kontext zu %@ voll",
         tabWorking: "Arbeitet",
         tabBlocked: "Wartet auf dich",
         tabDone: "Fertig",
@@ -916,6 +924,7 @@ extension NotchAgentStrings {
         tabsNone: "Aucun onglet d’agent ouvert",
         tabsUnreachable: "herdr n’est pas lancé",
         tabsNeedYouFormat: "%@ vous attendent",
+        contextFullFormat: "Contexte rempli à %@",
         tabWorking: "En cours",
         tabBlocked: "Vous attend",
         tabDone: "Terminé",
@@ -1020,6 +1029,7 @@ extension NotchAgentStrings {
         tabsNone: "Nessuna scheda agente aperta",
         tabsUnreachable: "herdr non è in esecuzione",
         tabsNeedYouFormat: "%@ ti aspettano",
+        contextFullFormat: "Contesto pieno al %@",
         tabWorking: "Al lavoro",
         tabBlocked: "Ti aspetta",
         tabDone: "Fatto",
@@ -1124,6 +1134,7 @@ extension NotchAgentStrings {
         tabsNone: "Нет открытых вкладок агентов",
         tabsUnreachable: "herdr не запущен",
         tabsNeedYouFormat: "Ждут вас: %@",
+        contextFullFormat: "Контекст заполнен на %@",
         tabWorking: "Работает",
         tabBlocked: "Ждёт вас",
         tabDone: "Готово",
@@ -1228,6 +1239,7 @@ extension NotchAgentStrings {
         tabsNone: "Açık ajan sekmesi yok",
         tabsUnreachable: "herdr çalışmıyor",
         tabsNeedYouFormat: "%@ sizi bekliyor",
+        contextFullFormat: "Bağlam doluluğu: %@",
         tabWorking: "Çalışıyor",
         tabBlocked: "Sizi bekliyor",
         tabDone: "Bitti",
@@ -1332,6 +1344,7 @@ extension NotchAgentStrings {
         tabsNone: "開いているエージェントのタブはありません",
         tabsUnreachable: "herdrが起動していません",
         tabsNeedYouFormat: "%@件が対応待ち",
+        contextFullFormat: "コンテキスト使用率 %@",
         tabWorking: "作業中",
         tabBlocked: "対応待ち",
         tabDone: "完了",
@@ -1436,6 +1449,7 @@ extension NotchAgentStrings {
         tabsNone: "열린 에이전트 탭 없음",
         tabsUnreachable: "herdr가 실행 중이 아님",
         tabsNeedYouFormat: "%@개가 응답 대기 중",
+        contextFullFormat: "컨텍스트 %@ 사용",
         tabWorking: "작업 중",
         tabBlocked: "응답 대기",
         tabDone: "완료",
@@ -1540,6 +1554,7 @@ extension NotchAgentStrings {
         tabsNone: "没有打开的智能体标签页",
         tabsUnreachable: "herdr 未运行",
         tabsNeedYouFormat: "%@ 个等你处理",
+        contextFullFormat: "上下文已用 %@",
         tabWorking: "工作中",
         tabBlocked: "等你处理",
         tabDone: "已完成",
@@ -1644,6 +1659,7 @@ extension NotchAgentStrings {
         tabsNone: "沒有開啟的代理分頁",
         tabsUnreachable: "herdr 未執行",
         tabsNeedYouFormat: "%@ 個等你處理",
+        contextFullFormat: "上下文已使用 %@",
         tabWorking: "工作中",
         tabBlocked: "等你處理",
         tabDone: "已完成",
@@ -1748,6 +1764,7 @@ extension NotchAgentStrings {
         tabsNone: "沒有開啟的代理分頁",
         tabsUnreachable: "herdr 未執行",
         tabsNeedYouFormat: "%@ 個等你處理",
+        contextFullFormat: "上下文已使用 %@",
         tabWorking: "工作中",
         tabBlocked: "等你處理",
         tabDone: "已完成",

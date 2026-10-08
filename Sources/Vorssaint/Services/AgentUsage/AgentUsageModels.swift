@@ -148,6 +148,8 @@ struct AgentLiveSession: Equatable, Identifiable {
     var project: String
     var tokens: AgentTokens
     var cost: Double
+    /// What the latest request read, cached or not: how full the context is.
+    var context = 0
 }
 
 /// Something worth a moment in the closed island.

@@ -84,5 +84,36 @@ enum HerdrLinkTests {
                      "an idle tab that isn't the working session is not named")
         suite.expect(NotchAgentSupport.stripTab(live: [live("a", active: 0)], tabs: [tab("p1", "", .working, session: "a")]) == nil,
                      "a tab without a name leaves the strip as it was")
+
+        let busy = tabs + [tab("p5", "done", .done, session: "e"), tab("p6", "more", .working, session: "f"),
+                           tab("p7", "lost", .unknown, session: "g")]
+        suite.expect(NotchAgentSupport.stripDots(tabs: busy) == [.blocked, .working, .working, .working],
+                     "dots put the tab that needs the person first, skip idle ones and stop at four")
+        suite.expect(NotchAgentSupport.stripDots(tabs: [tab("p5", "done", .done, session: "e"), tabs[3]]) == [.done],
+                     "a finished tab keeps a dot; an idle one has none")
+        suite.expect(NotchAgentSupport.stripDotsWidth(0) == 0 && NotchAgentSupport.stripDotsWidth(2) == 20,
+                     "no dots take no room")
+        suite.expect(NotchAgentSupport.stripWaiting(tabs: busy) == 1 && NotchAgentSupport.stripWaiting(tabs: []) == 0,
+                     "the tabs waiting on the person are counted")
+
+        func reading(_ session: String, model: String, context: Int, active seconds: TimeInterval,
+                     provider: AgentProvider = .claude) -> AgentLiveSession {
+            var value = live(session, active: seconds, provider: provider)
+            value.model = model
+            value.context = context
+            return value
+        }
+        suite.expect(NotchAgentSupport.contextWindow(model: "claude-opus-5-5", context: 10) == 1_000_000
+                     && NotchAgentSupport.contextWindow(model: "claude-haiku-4-5-20251001", context: 150_000) == 200_000
+                     && NotchAgentSupport.contextWindow(model: "claude-haiku-4-5-20251001", context: 250_000) == 1_000_000,
+                     "Claude 5 models read into a million tokens, others 200K until a request outgrows it")
+        let context = NotchAgentSupport.stripContext(live: [
+            reading("a", model: "claude-haiku-4-5-20251001", context: 50_000, active: -30),
+            reading("b", model: "claude-opus-5-5", context: 630_000, active: -5),
+            reading("c", model: "gpt-6", context: 900_000, active: 0, provider: .codex),
+        ])
+        suite.expect(context == 0.63, "the ring follows the Claude session active last: \(String(describing: context))")
+        suite.expect(NotchAgentSupport.stripContext(live: [live("a", active: 0)]) == nil,
+                     "no ring before a session's first reply")
     }
 }

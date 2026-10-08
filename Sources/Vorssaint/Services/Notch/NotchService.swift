@@ -734,7 +734,20 @@ final class NotchService: ObservableObject {
         let width = (shape as NSString).size(withAttributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
         ]).width
-        let reading = width.rounded(.up) + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
+        var reading = width.rounded(.up) + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
+        // A tab that needs the person turns the reading into a raised hand and
+        // a count; otherwise the context ring sits before the reading.
+        let tabs = HerdrLink.shared.tabs
+        let live = AgentUsageService.shared.snapshot.live
+        let waiting = NotchAgentSupport.stripWaiting(tabs: tabs)
+        if waiting > 0 {
+            reading = (String(waiting) as NSString).size(withAttributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
+            ]).width.rounded(.up) + (size * 0.85).rounded(.up) + 3
+                + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
+        } else if NotchAgentSupport.readout() != .limit, NotchAgentSupport.stripContext(live: live) != nil {
+            reading += NotchAgentSupport.stripRingSize + 4
+        }
         // The marks on the other side, drawn as the strip draws them: two
         // working agents share a smaller size, each in a frame wider than it.
         let working = Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count
@@ -747,14 +760,15 @@ final class NotchService: ObservableObject {
         let free = NotchSupport.coversMenus()
             ? (geometry.screen == self.geometry.screen ? nameRoom : nil) : geometry.compactSideRoom
         if let room = free, room.isFinite, room >= NotchAgentSupport.stripNameRoom,
-           let named = NotchAgentSupport.stripTab(live: AgentUsageService.shared.snapshot.live,
-                                                  tabs: HerdrLink.shared.tabs) {
+           let named = NotchAgentSupport.stripTab(live: live, tabs: tabs) {
             marks += 5 + (NotchAgentSupport.stripTabText(named) as NSString).size(withAttributes: [
                 .font: NSFont.systemFont(ofSize: NotchAgentSupport.stripNameSize, weight: .medium)
             ]).width.rounded(.up) + 4
             return min(NotchAgentSupport.stripNameMaximumWing, room.rounded(.down),
                        max(reading, marks) + NotchAgentSupport.stripCameraGap)
         }
+        // Without a name, a dot per agent tab follows the marks.
+        marks += NotchAgentSupport.stripDotsWidth(NotchAgentSupport.stripDots(tabs: tabs).count)
         return min(NotchAgentSupport.stripWingRange.upperBound, max(reading, marks) + NotchAgentSupport.stripCameraGap)
     }
 

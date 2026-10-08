@@ -272,6 +272,13 @@ enum NotchAgentTests {
                                                                           output: 334, reasoning: 32),
                                                        longCacheWrite: 17_218), model: "claude-opus-5-5").cost
         suite.expect(store.records.first?.cost == expected, "a merged reply is priced from its merged counts")
+        let turns = AgentUsageStore()
+        var turnState = AgentLogState()
+        turns.apply([.turnBegan(Date(timeIntervalSince1970: 0))]
+                        + AgentLogParser.parseClaude(claudeAssistant(output: 8), state: &turnState, now: now),
+                    file: "t", provider: .claude, tracksTurns: true, modified: now)
+        suite.expect(turns.live.first?.context == 2 + 17_218 + 43_134,
+                     "a live turn's context is what its latest request read, cached or not")
         store.dropRecords(before: Date(timeIntervalSince1970: 2_000_000_000))
         var later = AgentLogState()
         store.apply(AgentLogParser.parseClaude(claudeAssistant(output: 400), state: &later, now: now),

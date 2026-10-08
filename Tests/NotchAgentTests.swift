@@ -36,6 +36,7 @@ enum NotchAgentTests {
         preferences(suite)
         formatting(suite)
         AgentUsageEventDeliveryTests.run(suite)
+        HerdrLinkTests.run(suite)
         NotchAgentAnimationTests.run { suite.expect($0, $1) }
     }
 
@@ -2537,8 +2538,10 @@ enum NotchAgentTests {
 
         defaults.set("trend,unknown,trend,spend", forKey: DefaultsKey.notchAgentsCardOrder)
         defaults.set("activity,projects", forKey: DefaultsKey.notchAgentsHiddenCards)
-        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
+        suite.expect(NotchAgentSupport.cards(in: defaults, herdr: false) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
+        suite.expect(NotchAgentSupport.cards(in: defaults, herdr: true) == [.trend, .spend, .limits, .live, .models, .resets, .tabs],
+                     "the Tabs card joins only where herdr runs")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
         suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot], "an agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)

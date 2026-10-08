@@ -36,7 +36,8 @@ struct NotchAgentsSettingsControls: View {
     private var orderedCards: [NotchAgentCard] {
         let stored = cardOrder.split(separator: ",").compactMap { NotchAgentCard(rawValue: String($0)) }
         var seen = Set<NotchAgentCard>()
-        return (stored + NotchAgentCard.allCases).filter { seen.insert($0).inserted }
+        let herdr = HerdrLink.installed
+        return (stored + NotchAgentCard.allCases).filter { seen.insert($0).inserted && ($0 != .tabs || herdr) }
     }
 
     var body: some View {

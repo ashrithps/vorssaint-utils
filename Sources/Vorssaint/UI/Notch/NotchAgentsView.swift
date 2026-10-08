@@ -99,6 +99,8 @@ struct NotchAgentsView: View {
             NotchAgentActivityCard(snapshot: snapshot, text: text)
         case .resets:
             NotchAgentResetsCard(now: now, text: text)
+        case .tabs:
+            NotchAgentTabsCard(snapshot: snapshot, text: text)
         }
     }
 }
@@ -459,6 +461,7 @@ private struct NotchAgentLiveCard: View {
     let providers: [AgentProvider]
     let text: NotchAgentStrings
     @Environment(\.locale) private var locale
+    @ObservedObject private var herdr = HerdrLink.shared
 
     var body: some View {
         let live = snapshot.live.filter { providers.contains($0.provider) }
@@ -484,13 +487,20 @@ private struct NotchAgentLiveCard: View {
                 }
             }
         }
+        .onAppear { if HerdrLink.installed { herdr.watch() } }
+        .onDisappear { if HerdrLink.installed { herdr.unwatch() } }
+    }
+
+    private func tab(of session: AgentLiveSession) -> HerdrAgentTab? {
+        session.provider == .claude ? herdr.tab(forSession: HerdrLink.session(ofLog: session.id)) : nil
     }
 
     private func row(_ session: AgentLiveSession, now: Date) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
+        let tab = tab(of: session)
+        return VStack(alignment: .leading, spacing: 1) {
             HStack(spacing: 4) {
                 NotchAgentGlyph(provider: session.provider, size: 9)
-                Text(session.project.isEmpty ? session.provider.displayName : session.project)
+                Text(tab?.tab ?? (session.project.isEmpty ? session.provider.displayName : session.project))
                     .font(.system(size: 11, weight: .semibold))
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -513,6 +523,8 @@ private struct NotchAgentLiveCard: View {
         }
         .help(text.tokens(AgentFormat.tokens(session.tokens.total)) + " · "
               + text.cached(AgentFormat.percent(session.tokens.cacheHitRate ?? 0)))
+        .contentShape(Rectangle())
+        .onTapGesture { if let tab { herdr.focus(tab) } }
     }
 
     private func idleRow(_ provider: AgentProvider) -> some View {
@@ -526,6 +538,94 @@ private struct NotchAgentLiveCard: View {
                 .font(.system(size: 9.5))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+        }
+    }
+}
+
+// MARK: Tabs
+
+/// Every agent tab open in herdr: what it's called, whether it needs you, and
+/// for one that is working, how long and with which model. A tap shows it.
+private struct NotchAgentTabsCard: View {
+    let snapshot: AgentUsageSnapshot
+    let text: NotchAgentStrings
+    @ObservedObject private var herdr = HerdrLink.shared
+
+    private static let rows = 5
+
+    var body: some View {
+        let tabs = herdr.tabs
+        let waiting = tabs.filter { $0.status == .blocked }.count
+        NotchAgentCardChrome {
+            VStack(alignment: .leading, spacing: 6) {
+                NotchAgentCardHeader(title: text.tabsCard, symbol: NotchAgentCard.tabs.symbol,
+                                     tint: waiting > 0 ? .orange : .secondary) {
+                    HStack(spacing: 4) {
+                        if waiting > 0 { NotchAgentChip(text: text.needYou(waiting), tint: .orange) }
+                        if tabs.count > Self.rows { NotchAgentChip(text: "+\(tabs.count - Self.rows)") }
+                    }
+                }
+                if tabs.isEmpty {
+                    Text(herdr.reachable ? text.tabsNone : text.tabsUnreachable)
+                        .font(.system(size: 10.5)).foregroundStyle(.secondary)
+                } else {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        VStack(alignment: .leading, spacing: 3) {
+                            ForEach(tabs.prefix(Self.rows)) { row($0, now: context.date) }
+                        }
+                    }
+                }
+            }
+        }
+        .onAppear { herdr.watch() }
+        .onDisappear { herdr.unwatch() }
+    }
+
+    private func row(_ tab: HerdrAgentTab, now: Date) -> some View {
+        let live = snapshot.live.first { $0.provider == .claude && HerdrLink.session(ofLog: $0.id) == tab.session }
+        return Button { herdr.focus(tab) } label: {
+            HStack(spacing: 6) {
+                marker(tab.status)
+                    .frame(width: 12, height: 12)
+                Text(tab.tab.isEmpty ? tab.agent : tab.tab)
+                    .font(.system(size: 11, weight: tab.status == .blocked ? .semibold : .medium))
+                    .foregroundStyle(tab.status == .idle ? .secondary : .primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Text(tab.workspace)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .layoutPriority(-1)
+                Spacer(minLength: 6)
+                Text(detail(tab, live: live, now: now))
+                    .font(.system(size: 10, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(tab.status == .blocked ? Color.orange : Color.secondary)
+                    .lineLimit(1)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(text.tabHelp)
+    }
+
+    private func detail(_ tab: HerdrAgentTab, live: AgentLiveSession?, now: Date) -> String {
+        guard tab.status == .working, let live else { return text.tabStatus(tab.status) }
+        return [AgentPricing.displayName(live.model), AgentFormat.clock(now.timeIntervalSince(live.started))]
+            .filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    @ViewBuilder private func marker(_ status: HerdrAgentTab.Status) -> some View {
+        switch status {
+        case .working:
+            NotchAgentPulse(tint: AgentProvider.claude.tint, size: 4)
+        case .blocked:
+            Image(systemName: "exclamationmark.circle.fill").font(.system(size: 10)).foregroundStyle(.orange)
+        case .done:
+            Image(systemName: "checkmark.circle.fill").font(.system(size: 10)).foregroundStyle(.green)
+        case .idle, .unknown:
+            Circle().fill(Color.secondary.opacity(0.5)).frame(width: 5, height: 5)
         }
     }
 }

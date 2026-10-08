@@ -253,6 +253,9 @@ final class NotchService: ObservableObject {
     private var menuSpaceTimer: Timer?
     private var menuSpaceReading = false
     private var menuSpaceGeneration = 0
+    /// The room the menus leave beside the camera, measured even while the
+    /// island covers them, for a herdr tab's name; nil when unknown.
+    private var nameRoom: CGFloat?
     private var menuBarMeasurements = NotchMenuBarMeasurements()
     private var screenRefreshWork: DispatchWorkItem?
     private var preferenceSyncWork: DispatchWorkItem?
@@ -741,13 +744,16 @@ final class NotchService: ObservableObject {
             + provisional.compactActivityEdgeInset(boxHeight: mark + 4, radius: (mark + 4) / 2)
         // The herdr tab's name follows the marks where the menus leave room;
         // otherwise the strip keeps its short wings and the reading alone.
-        if let room = geometry.compactSideRoom, room.isFinite, room >= NotchAgentSupport.stripNameRoom,
+        let free = NotchSupport.coversMenus()
+            ? (geometry.screen == self.geometry.screen ? nameRoom : nil) : geometry.compactSideRoom
+        if let room = free, room.isFinite, room >= NotchAgentSupport.stripNameRoom,
            let named = NotchAgentSupport.stripTab(live: AgentUsageService.shared.snapshot.live,
                                                   tabs: HerdrLink.shared.tabs) {
             marks += 5 + (NotchAgentSupport.stripTabText(named) as NSString).size(withAttributes: [
                 .font: NSFont.systemFont(ofSize: NotchAgentSupport.stripNameSize, weight: .medium)
             ]).width.rounded(.up) + 4
-            return min(NotchAgentSupport.stripNameMaximumWing, max(reading, marks) + NotchAgentSupport.stripCameraGap)
+            return min(NotchAgentSupport.stripNameMaximumWing, room.rounded(.down),
+                       max(reading, marks) + NotchAgentSupport.stripCameraGap)
         }
         return min(NotchAgentSupport.stripWingRange.upperBound, max(reading, marks) + NotchAgentSupport.stripCameraGap)
     }
@@ -3125,9 +3131,17 @@ final class NotchService: ObservableObject {
         if running, !suspended, NotchSupport.coversMenus() || !displayHasMenuBar {
             // Nothing to measure: the island keeps the room an empty bar
             // would leave it, over whatever menus and status items are there.
-            stopMenuSpaceMonitoring()
             applyMenuSpace(NotchMenuBarLayout.sideRoom(screen: geometry.screen, cameraWidth: geometry.cameraWidth,
                                                        barHeight: geometry.menuBarHeight, occupied: []))
+            // A herdr tab's name still widens the agent strip only into room
+            // the menus and status items leave free, so the menus are measured
+            // for it alone.
+            if displayHasMenuBar, HerdrLink.installed, AXIsProcessTrusted(), !hiddenUntilHover, !expanded {
+                startMenuSpaceMonitoring()
+            } else {
+                stopMenuSpaceMonitoring()
+                nameRoom = nil
+            }
             return
         }
         guard AXIsProcessTrusted() else {
@@ -3141,6 +3155,10 @@ final class NotchService: ObservableObject {
         let wanted = running && !suspended && !hiddenUntilHover && !expanded && captureControls == nil
             && (idleContent != .none || compactActivity != nil || !geometry.isNotched || mascotWantsRoom)
         guard wanted else { stopMenuSpaceMonitoring(); return }
+        startMenuSpaceMonitoring()
+    }
+
+    private func startMenuSpaceMonitoring() {
         guard menuSpaceTimer == nil else { return }
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.readMenuSpace() }
         timer.tolerance = 0.2
@@ -3179,6 +3197,11 @@ final class NotchService: ObservableObject {
         guard menuSpaceTimer != nil, !menuSpaceReading,
               let pid = NSWorkspace.shared.menuBarOwningApplication?.processIdentifier
                 ?? (NSApp.isActive ? getpid() : nil) else { return }
+        // Covering the menus, only a working agent's strip uses the reading.
+        if NotchSupport.coversMenus(), compactActivity != .agents {
+            nameRoom = nil
+            return
+        }
         menuSpaceReading = true
         let generation = menuSpaceGeneration
         let geometry = geometry
@@ -3197,9 +3220,15 @@ final class NotchService: ObservableObject {
                         ?? (NSApp.isActive ? getpid() : nil)) == pid else {
                     self.readMenuSpace(); return
                 }
-                self.applyMenuSpace(room)
+                if NotchSupport.coversMenus() { self.applyNameRoom(room) } else { self.applyMenuSpace(room) }
             }
         }
+    }
+
+    private func applyNameRoom(_ room: CGFloat?) {
+        guard nameRoom != room else { return }
+        nameRoom = room
+        if compactActivity == .agents { refreshPresentation(animated: true) }
     }
 
     private func applyMenuSpace(_ room: CGFloat?) {

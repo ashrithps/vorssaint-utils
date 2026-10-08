@@ -109,6 +109,8 @@ enum NotchScreenRefreshContract {
         var mascotWantsRoom = false
         var accessibilityGranted = true
         var coversMenus = false
+        var herdrInstalled = false
+        var nameRoom: CGFloat?
         var menuSpaceTimer: Timer?
         var menuSpaceGeneration = 0
         var screenRefreshWork: DispatchWorkItem?
@@ -383,6 +385,26 @@ enum NotchScreenRefreshContract {
         covering.syncMenuSpaceMonitoring()
         suite.expect(covering.menuSpaceTimer != nil && covering.reads == 1,
                "giving way to the menus again resumes the existing reader")
+
+        // With herdr, a covering island still reads the menus, for the tab name alone.
+        let naming = Service()
+        naming.herdrInstalled = true
+        naming.coversMenus = true
+        naming.nameRoom = 120
+        naming.accessibilityGranted = false
+        naming.syncMenuSpaceMonitoring()
+        suite.expect(naming.menuSpaceTimer == nil && naming.reads == 0 && naming.nameRoom == nil
+               && naming.geometry.compactSideRoom == emptyBar,
+               "without Accessibility a herdr tab's name has no measured room, and the island keeps covering")
+        naming.accessibilityGranted = true
+        naming.syncMenuSpaceMonitoring()
+        let namingTimer = naming.menuSpaceTimer
+        suite.expect(namingTimer != nil && naming.reads == 1 && naming.geometry.compactSideRoom == emptyBar,
+               "with Accessibility the menus are measured for the name while the island keeps an empty bar's room")
+        naming.expanded = true
+        naming.syncMenuSpaceMonitoring()
+        suite.expect(naming.menuSpaceTimer == nil && namingTimer?.invalidated == true,
+               "an open island stops measuring for the closed strip's name")
 
         let idleSimulated = Service()
         idleSimulated.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),

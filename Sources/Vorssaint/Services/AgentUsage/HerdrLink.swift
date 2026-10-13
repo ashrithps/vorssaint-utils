@@ -125,6 +125,21 @@ final class HerdrLink: ObservableObject {
         !session.isEmpty && path.contains("/" + session + "/tasks/")
     }
 
+    /// How long a command left running between turns may go without writing
+    /// output before it has to keep the CPU busy to count as working.
+    static let backgroundQuiet: TimeInterval = 900
+    /// The share of one core such a quiet command has to keep busy.
+    static let backgroundBusyShare = 0.02
+
+    /// Whether a command left running between turns still works: it wrote
+    /// output lately, or its processes used the CPU since the last look. A
+    /// hung command does neither and must not keep the Mac up for good.
+    static func backgroundAlive(lastOutput: Date?, cpuSeconds: Double?, overSeconds: TimeInterval, now: Date) -> Bool {
+        if let lastOutput, now.timeIntervalSince(lastOutput) < backgroundQuiet { return true }
+        guard let cpuSeconds, overSeconds > 0 else { return false }
+        return cpuSeconds >= overSeconds * backgroundBusyShare
+    }
+
     /// The session id behind a live transcript: Claude Code names each log
     /// after its session.
     static func session(ofLog path: String) -> String {
@@ -175,6 +190,8 @@ final class HerdrLink: ObservableObject {
         let idle = tabs.indices.filter {
             tabs[$0].agent == "claude" && tabs[$0].status != .working && hasLocalClaudeLog(session: tabs[$0].session)
         }
+        let sessions = Set(idle.map { tabs[$0].session })
+        cpuSamples = cpuSamples.filter { sessions.contains($0.key) }
         guard !idle.isEmpty else { return }
         var parents: [(pid: pid_t, ppid: pid_t)]?
         for index in idle {
@@ -189,9 +206,50 @@ final class HerdrLink: ObservableObject {
                 ($0["argv0"] as? String) == "claude" || ($0["name"] as? String)?.hasPrefix("claude") == true
             })?["pid"] as? Int else { continue }
             if parents == nil { parents = processParents() }
-            tabs[index].background = descendants(of: pid_t(claude), parents: parents ?? [])
-                .contains { holdsTaskOutput($0, session: session) }
+            let tree = descendants(of: pid_t(claude), parents: parents ?? [])
+            let holders = tree.map { (pid: $0, outputs: taskOutputs($0, session: session)) }.filter { !$0.outputs.isEmpty }
+            guard !holders.isEmpty else {
+                cpuSamples[session] = nil
+                continue
+            }
+            // The command's own processes: whatever holds its output and
+            // everything they started, which may write elsewhere.
+            var command = Set(holders.map(\.pid))
+            for holder in holders { command.formUnion(descendants(of: holder.pid, parents: parents ?? [])) }
+            let cpu = command.reduce(0) { $0 + cpuTime($1) }
+            let now = Date()
+            let previous = cpuSamples[session]
+            cpuSamples[session] = (cpu, now)
+            tabs[index].background = backgroundAlive(
+                lastOutput: holders.flatMap(\.outputs).compactMap(modified).max(),
+                cpuSeconds: previous.map { max(0, cpu - $0.cpu) },
+                overSeconds: previous.map { now.timeIntervalSince($0.at) } ?? 0,
+                now: now)
         }
+    }
+
+    /// CPU time each idle session's running command had used at the last
+    /// look. Touched only from `fetch`, on `queue`.
+    private static var cpuSamples: [String: (cpu: Double, at: Date)] = [:]
+
+    private static func modified(_ path: String) -> Date? {
+        (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
+    }
+
+    private static let ticksToSeconds: Double = {
+        var timebase = mach_timebase_info_data_t()
+        mach_timebase_info(&timebase)
+        return Double(timebase.numer) / Double(timebase.denom) / 1e9
+    }()
+
+    /// CPU time a process has used so far, in seconds; 0 once it is gone.
+    static func cpuTime(_ pid: pid_t) -> Double {
+        var info = rusage_info_v0()
+        let status = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V0, $0) }
+        }
+        guard status == 0 else { return 0 }
+        return Double(info.ri_user_time + info.ri_system_time) * ticksToSeconds
     }
 
     static func processParents() -> [(pid: pid_t, ppid: pid_t)] {
@@ -218,19 +276,25 @@ final class HerdrLink: ObservableObject {
     }
 
     static func holdsTaskOutput(_ pid: pid_t, session: String) -> Bool {
+        !taskOutputs(pid, session: session).isEmpty
+    }
+
+    /// The session's command output files a process holds open.
+    static func taskOutputs(_ pid: pid_t, session: String) -> [String] {
         let size = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nil, 0)
-        guard size > 0 else { return false }
+        guard size > 0 else { return [] }
         var fds = [proc_fdinfo](repeating: proc_fdinfo(), count: Int(size) / MemoryLayout<proc_fdinfo>.stride)
         let used = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, &fds, size)
-        guard used > 0 else { return false }
+        guard used > 0 else { return [] }
+        var paths: [String] = []
         for fd in fds.prefix(Int(used) / MemoryLayout<proc_fdinfo>.stride) where fd.proc_fdtype == UInt32(PROX_FDTYPE_VNODE) {
             var info = vnode_fdinfowithpath()
             let length = Int32(MemoryLayout<vnode_fdinfowithpath>.size)
             guard proc_pidfdinfo(pid, fd.proc_fd, PROC_PIDFDVNODEPATHINFO, &info, length) == length else { continue }
             let path = withUnsafeBytes(of: info.pvip.vip_path) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
-            if isTaskOutput(path, session: session) { return true }
+            if isTaskOutput(path, session: session) { paths.append(path) }
         }
-        return false
+        return paths
     }
 
     private static func isAgent(_ pane: [String: Any]) -> Bool {
